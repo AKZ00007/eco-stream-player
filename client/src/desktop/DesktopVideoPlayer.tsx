@@ -8,10 +8,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import type { Video } from '../types';
 import { updateWatchProgress } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatTime } from '../utils/helpers';
 
-export default function DesktopVideoPlayer({ video, recommendations }: { video: Video; recommendations?: Video[] }) {
+export default function DesktopVideoPlayer({ video, recommendations, onProgressUpdate }: { video: Video; recommendations?: Video[]; onProgressUpdate?: (progress: number) => void }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastSyncRef = useRef<number>(Date.now());
@@ -241,6 +243,7 @@ export default function DesktopVideoPlayer({ video, recommendations }: { video: 
     const dur = videoRef.current.duration || 0;
     setCurrentTime(ct);
     setDuration(dur);
+    if (dur > 0 && onProgressUpdate) onProgressUpdate(ct / dur);
 
     if (videoRef.current.buffered.length > 0) {
       setBuffered(videoRef.current.buffered.end(videoRef.current.buffered.length - 1) / dur);
@@ -249,7 +252,20 @@ export default function DesktopVideoPlayer({ video, recommendations }: { video: 
     const now = Date.now();
     if (now - lastSyncRef.current > 5000 && dur > 0) {
       lastSyncRef.current = now;
-      updateWatchProgress(video.id, ct / dur).catch(() => {});
+      updateWatchProgress(video.id, ct / dur).then((updatedVideo) => {
+        queryClient.setQueriesData({ queryKey: ['videos'] }, (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+        });
+        queryClient.setQueriesData({ queryKey: ['recommendations'] }, (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+        });
+        queryClient.setQueriesData({ queryKey: ['trending-tick'] }, (old: any) => {
+          if (!Array.isArray(old)) return old;
+          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+        });
+      }).catch(() => {});
     }
   };
 

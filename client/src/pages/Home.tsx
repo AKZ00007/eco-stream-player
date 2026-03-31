@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCategories, useVideos } from '../api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { useSearchStore } from '../store/useSearchStore';
 import { ChevronRight, Search, Menu, Play, Compass, Moon, Sun } from 'lucide-react';
 import DesktopHome from '../desktop/DesktopHome';
 import { useThemeStore } from '../store/useThemeStore';
@@ -200,7 +201,8 @@ export default function Home() {
   const openPlayer = usePlayerStore((s) => s.openPlayer);
   const navigate = useNavigate();
 
-
+  const { query, setQuery } = useSearchStore();
+  const [isSearchMode, setIsSearchMode] = useState(false);
 
   const [activeFilterSlug, setActiveFilterSlug] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -245,24 +247,48 @@ export default function Home() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--base-0)' }}>
       {/* Top Nav */}
-      <div className="topnav">
-        <div className="brand">
-          <div className="brand-mark">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff">
-              <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 008 20c11 0 14-17 14-17-1 2-8 2-8 2s7-2 3 1z" />
-            </svg>
+      <div className="topnav" style={{ position: 'relative' }}>
+        {isSearchMode ? (
+          <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 12 }}>
+            <button 
+              onClick={() => { setIsSearchMode(false); setQuery(''); }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--ink-1)', padding: 4 }}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <input 
+              autoFocus
+              type="text" 
+              placeholder="Search streams..." 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                flex: 1, height: 36, background: 'var(--base-1)', border: 'none', borderRadius: 18,
+                padding: '0 16px', fontSize: 14, color: 'var(--ink-0)', outline: 'none'
+              }}
+            />
           </div>
-          <span className="brand-name">Eco-Stream</span>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <ThemeToggle />
-          <div className="ibtn">
-            <Search size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
-          </div>
-          <div className="ibtn" >
-            <Menu size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
-          </div>
-        </div>
+        ) : (
+          <>
+            <div className="brand">
+              <div className="brand-mark">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff">
+                  <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 008 20c11 0 14-17 14-17-1 2-8 2-8 2s7-2 3 1z" />
+                </svg>
+              </div>
+              <span className="brand-name">Eco-Stream</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <ThemeToggle />
+              <div className="ibtn" onClick={() => setIsSearchMode(true)}>
+                <Search size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
+              </div>
+              <div className="ibtn" >
+                <Menu size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Scroll Body */}
@@ -280,40 +306,41 @@ export default function Home() {
           <span>Fetching latest stories</span>
         </div>
 
-
-
-
-
         {/* Page Head */}
-        <div style={{ padding: '4px 22px 18px', display: 'flex', alignItems: 'flex-start', flexDirection: 'column', gap: 4 }}>
-          <h1 style={{ 
-            fontFamily: 'var(--font-serif)', fontWeight: 400, 
-            fontSize: 28, color: 'var(--ink-0)', letterSpacing: '-0.3px',
-            display: 'flex', alignItems: 'center', gap: 10
-          }}>
-            Discover Feed
-            <Compass size={18} color="var(--emerald)" />
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.4 }}>
-            Stories that shape our planet's future
-          </p>
-        </div>
+        {!query && (
+          <div style={{ padding: '4px 22px 18px', display: 'flex', alignItems: 'flex-start', flexDirection: 'column', gap: 4 }}>
+            <h1 style={{ 
+              fontFamily: 'var(--font-serif)', fontWeight: 400, 
+              fontSize: 28, color: 'var(--ink-0)', letterSpacing: '-0.3px',
+              display: 'flex', alignItems: 'center', gap: 10
+            }}>
+              Discover Feed
+              <Compass size={18} color="var(--emerald)" />
+            </h1>
+            <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.4 }}>
+              Stories that shape our planet's future
+            </p>
+          </div>
+        )}
 
         {/* Filter Pills */}
-        <div className="fstrip">
-          {FILTERS.map((f) => (
-            <div
-              key={f.label}
-              className={`fpill ${f.slug === activeFilterSlug ? 'active' : ''}`}
-              onClick={() => setActiveFilterSlug(f.slug)}
-            >
-              <span dangerouslySetInnerHTML={{ __html: f.svg }} />
-              {f.label}
-            </div>
-          ))}
-        </div>
+        {!query && (
+          <div className="fstrip">
+            {FILTERS.map((f) => (
+              <div
+                key={f.label}
+                className={`fpill ${f.slug === activeFilterSlug ? 'active' : ''}`}
+                onClick={() => setActiveFilterSlug(f.slug)}
+              >
+                <span dangerouslySetInnerHTML={{ __html: f.svg }} />
+                {f.label}
+              </div>
+            ))}
+          </div>
+        )}
 
-        {featuredVideo && (
+        {/* Hero Feature (Hide during search) */}
+        {!query && featuredVideo && activeFilterSlug === 'all' && (
           <div className="featured" onClick={() => openPlayer(featuredVideo)}>
             <img 
               src={featuredVideo.thumbnailUrl} 
@@ -359,8 +386,22 @@ export default function Home() {
           </div>
         )}
 
-        {/* Category Sections */}
-        {isLoading
+        {/* Search Results */}
+        {query && allVideos && (
+          <div style={{ padding: '0 22px' }}>
+            <h4 style={{ color: 'var(--ink-1)', fontSize: 14, fontWeight: 600, marginBottom: 16 }}>
+              Search Results for "{query}"
+            </h4>
+            <div className="card-row" style={{ flexWrap: 'wrap', gap: 16 }}>
+              {allVideos.filter(v => v.title.toLowerCase().includes(query.toLowerCase())).map(v => (
+                <HomeVideoCard key={v.id} video={v} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category Sections (Hide during search) */}
+        {!query && (isLoading
           ? Array.from({ length: 3 }).map((_, i) => (
               <div key={i} style={{ marginBottom: 34 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 22px', marginBottom: 15 }}>
@@ -385,7 +426,7 @@ export default function Home() {
                   }}
                 />
               ))
-        }
+        )}
 
         <div style={{ height: 20 }} />
       </div>

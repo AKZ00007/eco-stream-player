@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { formatTime } from '../utils/helpers';
 import { useRecommendations, updateWatchProgress } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { getThemedTint } from '../utils/colorExtractor';
 import { useThemeStore } from '../store/useThemeStore';
 import { useColorExtract } from '../hooks/useColorExtract';
@@ -28,6 +29,7 @@ export default function VideoPlayer() {
     currentVideo, state, minimizePlayer, maximizePlayer, isPlaying,
     setPlaying, progress, setProgress, openPlayer, closePlayer
   } = usePlayerStore();
+  const queryClient = useQueryClient();
 
   // Derive a theme-aware tinted background from the dynamically extracted video's thumbnail color
   const themeMode = useThemeStore((s) => s.mode);
@@ -215,7 +217,20 @@ export default function VideoPlayer() {
     if (isPlaying && now - lastSyncRef.current > 5000 && currentVideo) {
       lastSyncRef.current = now;
       if (dur > 0) {
-        updateWatchProgress(currentVideo.id, currProgress).catch(() => {});
+        updateWatchProgress(currentVideo.id, currProgress).then((updatedVideo) => {
+          queryClient.setQueriesData({ queryKey: ['videos'] }, (old: any) => {
+            if (!Array.isArray(old)) return old;
+            return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+          });
+          queryClient.setQueriesData({ queryKey: ['recommendations'] }, (old: any) => {
+            if (!Array.isArray(old)) return old;
+            return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+          });
+          queryClient.setQueriesData({ queryKey: ['trending-tick'] }, (old: any) => {
+            if (!Array.isArray(old)) return old;
+            return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+          });
+        }).catch(() => {});
       }
     }
   };

@@ -8,6 +8,7 @@ import CategoryPlaylist from './pages/CategoryPlaylist';
 import PlayerRoot from './components/PlayerRoot';
 import DesktopTopNav from './desktop/DesktopTopNav';
 import DesktopVideoPage from './desktop/DesktopVideoPage';
+import DesktopMiniPlayer from './desktop/DesktopMiniPlayer';
 import { useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useLayoutStore } from './store/useLayoutStore';
@@ -124,6 +125,9 @@ function AppContent() {
 
       {/* Global player layer — always on top (handles mobile via Zustand state) */}
       {!isWatchPage && !isDesktop && <PlayerRoot />}
+
+      {/* Desktop Mini Player — floats globally across all routes */}
+      {isDesktop && !isWatchPage && <DesktopMiniPlayer />}
     </div>
   );
 }

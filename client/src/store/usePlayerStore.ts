@@ -17,6 +17,12 @@ interface PlayerStore {
   
   setPlaying: (playing: boolean) => void;
   setProgress: (progress: number) => void;
+
+  // New Desktop Mini Player States
+  desktopMiniVideo: Video | null;
+  desktopMiniProgress: number;
+  setDesktopMini: (video: Video | null, progress: number) => void;
+  clearDesktopMini: () => void;
 }
 
 export const usePlayerStore = create<PlayerStore>()(
@@ -54,11 +60,22 @@ export const usePlayerStore = create<PlayerStore>()(
       }),
       
       setPlaying: (playing) => set({ isPlaying: playing }),
-      setProgress: (progress) => set({ progress })
+      setProgress: (progress) => set({ progress }),
+
+      // New Desktop Actions
+      desktopMiniVideo: null,
+      desktopMiniProgress: 0,
+      setDesktopMini: (video, progress) => set({ desktopMiniVideo: video, desktopMiniProgress: progress }),
+      clearDesktopMini: () => set({ desktopMiniVideo: null, desktopMiniProgress: 0 }),
     }),
     {
       name: 'eco-stream-player-storage',
-      partialize: (state) => ({ progress: state.progress, currentVideo: state.currentVideo }),
+      partialize: (state) => ({ 
+        progress: state.progress, 
+        currentVideo: state.currentVideo,
+        desktopMiniVideo: state.desktopMiniVideo,
+        desktopMiniProgress: state.desktopMiniProgress
+      }),
     }
   )
 );

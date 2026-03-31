@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Flame, Leaf, ArrowLeft } from 'lucide-react';
 import { useVideos, useRecommendations } from '../api/queries';
@@ -10,12 +10,15 @@ import { calculateImpactScore } from '../utils/impact';
 import { useColorExtract } from '../hooks/useColorExtract';
 import { useThemeStore } from '../store/useThemeStore';
 import { getThemedTint } from '../utils/colorExtractor';
+import { usePlayerStore } from '../store/usePlayerStore';
 
 export default function DesktopVideoPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: videos, isLoading } = useVideos();
   const themeMode = useThemeStore(state => state.mode);
+  const setDesktopMini = usePlayerStore(s => s.setDesktopMini);
+  const playerProgressRef = useRef(0);
   
   const video = videos?.find(v => v.id === id);
   const { data: recommendations } = useRecommendations(video?.categorySlug || '', video?.id || '');
@@ -58,7 +61,12 @@ export default function DesktopVideoPage() {
       {/* ── Left Column: Player & Meta ── */}
       <div style={{ flex: '1 1 600px', minWidth: 'min(100%, 600px)', display: 'flex', flexDirection: 'column' }}>
         <button 
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (video) {
+              setDesktopMini(video, playerProgressRef.current);
+            }
+            navigate(-1);
+          }}
           style={{ 
             display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16,
             background: 'none', border: 'none', color: 'var(--ink-2)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
@@ -69,7 +77,7 @@ export default function DesktopVideoPage() {
         >
           <ArrowLeft size={16} strokeWidth={2.5} /> Back
         </button>
-        <DesktopVideoPlayer video={video} recommendations={recommendations} />
+        <DesktopVideoPlayer video={video} recommendations={recommendations} onProgressUpdate={(p) => { playerProgressRef.current = p; }} />
         
         {/* Title */}
         <h1 style={{
