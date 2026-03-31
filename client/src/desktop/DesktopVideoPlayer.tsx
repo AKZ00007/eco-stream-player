@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Play, Pause, Maximize, Minimize2,
   SkipBack, SkipForward, RotateCcw, RotateCw,
-  Volume2, VolumeX, Settings, Loader
+  Volume2, VolumeX, Settings, Loader, WifiOff
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Video } from '../types';
@@ -30,7 +30,8 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
   const [seekFlash, setSeekFlash] = useState<'left' | 'right' | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [volume, setVolume] = useState(1);
-  const [isBuffering, setIsBuffering] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrubberRef = useRef<HTMLDivElement>(null);
@@ -67,21 +68,30 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
     const vid = videoRef.current;
     if (!vid) return;
 
-    vid.volume = 0;
-    vid.muted = false;
+    setNetworkError(false);
+    setIsBuffering(true);
+    // Browsers ALWAYS allow muted autoplay. Start muted, then fade in.
+    vid.muted = true;
     vid.play().then(() => {
       setIsPlaying(true);
+      // After play starts, unmute with fade
       let fadeStep = 0;
       const fadeInterval = setInterval(() => {
         fadeStep += 0.05;
         if (fadeStep >= 1) {
+          vid.muted = false;
           vid.volume = isMuted ? 0 : volume;
           clearInterval(fadeInterval);
         } else {
+          vid.muted = false;
           vid.volume = isMuted ? 0 : fadeStep * volume;
         }
       }, 75);
-    }).catch(() => {});
+    }).catch(() => {
+      // If even muted autoplay fails, show play button
+      setIsPlaying(false);
+      setIsBuffering(false);
+    });
   }, [video.id]);
 
   // ── Sync mute/volume state ──
@@ -339,8 +349,9 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
         }}
         onEnded={() => setIsPlaying(false)}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={() => { setIsBuffering(false); setNetworkError(false); }}
         onCanPlay={() => setIsBuffering(false)}
+        onError={() => setNetworkError(true)}
         playsInline
         style={{
           width: '100%', height: '100%', objectFit: 'contain',
@@ -350,7 +361,7 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
 
       {/* ── Buffering / Loading Spinner ── */}
       <AnimatePresence>
-        {isBuffering && isPlaying && (
+        {isBuffering && !networkError && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -372,6 +383,44 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
                 style={{ animation: 'spin 1s linear infinite' }}
               />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Network Error Overlay ── */}
+      <AnimatePresence>
+        {networkError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute', inset: 0, zIndex: 55,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.85)', gap: 16,
+            }}
+          >
+            <WifiOff size={48} color="#888" />
+            <span style={{ color: '#ccc', fontSize: 16, fontWeight: 600 }}>Connect to the internet</span>
+            <span style={{ color: '#888', fontSize: 13, maxWidth: 280, textAlign: 'center' }}>You're offline. Check your connection and try again.</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setNetworkError(false);
+                setIsBuffering(true);
+                if (videoRef.current) {
+                  videoRef.current.load();
+                  videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+                }
+              }}
+              style={{
+                marginTop: 8, padding: '10px 24px', borderRadius: 20,
+                background: '#fff', color: '#000', border: 'none',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Retry
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

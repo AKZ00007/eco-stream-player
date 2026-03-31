@@ -4,7 +4,8 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import {
   Play, Pause, ChevronDown, Maximize,
   SkipBack, SkipForward, X,
-  Cast, RotateCcw, RotateCw, Volume2, VolumeX
+  Cast, RotateCcw, RotateCw, Volume2, VolumeX,
+  Loader, WifiOff
 } from 'lucide-react';
 import { formatTime } from '../utils/helpers';
 import { useRecommendations, updateWatchProgress } from '../api/queries';
@@ -49,6 +50,8 @@ export default function VideoPlayer() {
   const [isMuted, setMuted] = useState(false);
   const [seekFlash, setSeekFlash] = useState<'left' | 'right' | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
+  const [networkError, setNetworkError] = useState(false);
 
   const hasAutoResumed = useRef<string | null>(null);
 
@@ -67,13 +70,15 @@ export default function VideoPlayer() {
     currentVideo?.id || ''
   );
 
-  // Auto-resume: silently seek to saved position when opening a previously watched video
+  // Auto-resume & Auto-play logic
   useEffect(() => {
     if (currentVideo && isFull && hasAutoResumed.current !== currentVideo.id) {
       hasAutoResumed.current = currentVideo.id;
+      setNetworkError(false);
+      setIsBuffering(true);
+      
       const savedProgress = currentVideo.watchProgress || 0;
       if (savedProgress > 0.02 && savedProgress < 0.99 && videoRef.current) {
-        // Wait for metadata to load, then seek
         const onLoaded = () => {
           if (videoRef.current) {
             videoRef.current.currentTime = savedProgress * videoRef.current.duration;
@@ -85,10 +90,36 @@ export default function VideoPlayer() {
           videoRef.current.addEventListener('loadedmetadata', onLoaded, { once: true });
         }
       }
-      // Always auto-play
-      videoRef.current?.play().catch(() => {});
+
+      // ── Always auto-play with muted start ──
+      // Browsers block autoplay with sound. We start muted then fade in.
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.play().then(() => {
+          setPlaying(true);
+          // Gently fade in audio after a short delay
+          setTimeout(() => {
+            if (videoRef.current) {
+              videoRef.current.muted = false;
+              let fadeStep = 0;
+              const fadeInterval = setInterval(() => {
+                fadeStep += 0.1;
+                if (fadeStep >= 1) {
+                  videoRef.current!.volume = 1;
+                  clearInterval(fadeInterval);
+                } else {
+                  videoRef.current!.volume = fadeStep;
+                }
+              }, 50);
+            }
+          }, 300);
+        }).catch(() => {
+          setPlaying(false);
+          setIsBuffering(false);
+        });
+      }
     }
-  }, [currentVideo?.id, isFull]);
+  }, [currentVideo?.id, isFull, setPlaying]);
 
   // Auto-play toggle
   useEffect(() => {
@@ -375,8 +406,70 @@ export default function VideoPlayer() {
             if (videoRef.current) videoRef.current.playbackRate = playbackSpeed;
           }}
           onEnded={() => setPlaying(false)}
+          onWaiting={() => setIsBuffering(true)}
+          onPlaying={() => { setIsBuffering(false); setNetworkError(false); }}
+          onCanPlay={() => setIsBuffering(false)}
+          onError={() => setNetworkError(true)}
           playsInline
         />
+
+        {/* ── Buffering / Loading Overlay ── */}
+        <AnimatePresence>
+          {isBuffering && !networkError && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute', inset: 0, zIndex: 45,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{
+                width: 50, height: 50, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Loader size={28} color="#fff" style={{ animation: 'spin 1.2s linear infinite' }} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Network Error Overlay ── */}
+        <AnimatePresence>
+          {networkError && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute', inset: 0, zIndex: 55,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(0,0,0,0.85)', gap: 12, padding: 20, textAlign: 'center'
+              }}
+            >
+              <WifiOff size={40} color="#888" />
+              <span style={{ color: '#eee', fontSize: 15, fontWeight: 600 }}>Connect to the internet</span>
+              <span style={{ color: '#888', fontSize: 13 }}>You're offline. Check your connection.</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNetworkError(false);
+                  setIsBuffering(true);
+                  if (videoRef.current) {
+                    videoRef.current.load();
+                    videoRef.current.play().then(() => setPlaying(true)).catch(() => {});
+                  }
+                }}
+                style={{
+                  marginTop: 10, padding: '8px 24px', borderRadius: 20,
+                  background: '#fff', color: '#000', border: 'none',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Retry
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Seek flash indicators */}
         <AnimatePresence>
