@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getThemedTint } from '../utils/colorExtractor';
 import { useThemeStore } from '../store/useThemeStore';
 import { useColorExtract } from '../hooks/useColorExtract';
+import { createPortal } from 'react-dom';
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
@@ -56,7 +57,6 @@ export default function VideoPlayer() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   const hasAutoResumed = useRef<string | null>(null);
-  const originalParentRef = useRef<HTMLElement | null>(null);
 
   const log = useCallback((msg: string) => {
     setDebugLogs(prev => [...prev.slice(-8), `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -325,9 +325,8 @@ export default function VideoPlayer() {
   };
 
   // ── FAKE FULLSCREEN LOGIC (INDUSTRY STANDARD ANDROID HACK) ──
-  // The motion.div parent has style={{ y: dragY }} which applies a CSS transform.
-  // Any CSS transform on a parent BREAKS position:fixed for children.
-  // Fix: physically move the container to document.body to escape the transform trap.
+  // Fix: Neutralize the parent motion.div's transform and use a React portal 
+  // for the background overlay instead of physically moving the container in the DOM.
   const enterFakeFullscreen = useCallback(() => {
     const container = playerContainerRef.current;
     if (!container) { log('❌ no container ref'); return; }
@@ -339,28 +338,32 @@ export default function VideoPlayer() {
     const screenH = Math.max(vh, vw);
     const screenW = Math.min(vh, vw);
 
-    // Save the original parent so we can restore later
-    originalParentRef.current = container.parentElement;
-    log(`📦 parent=${container.parentElement?.className || 'unknown'}`);
+    // DON'T move the DOM node — just apply styles directly
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = `${screenW}px`;
+    container.style.width = `${screenH}px`;
+    container.style.height = `${screenW}px`;
+    container.style.transform = 'rotate(90deg)';
+    container.style.transformOrigin = 'top left';
+    container.style.zIndex = '99999';
+    container.style.background = '#000';
+    container.style.aspectRatio = 'auto';
+    log(`📏 w=${screenH} h=${screenW} left=${screenW}`);
 
-    // CRITICAL: Move container OUT of the motion.div into document.body
-    // This escapes the CSS transform trap that breaks position:fixed
-    document.body.appendChild(container);
-    log('📤 container moved to body');
+    document.body.style.overflow = 'hidden';
+
+    // THIS IS THE KEY: neutralize the parent motion.div transform
+    // by setting its transform to none temporarily
+    const motionParent = container.closest('.player-fullscreen') as HTMLElement;
+    if (motionParent) {
+      motionParent.style.transform = 'none';
+      log('🔧 motion parent transform neutralized');
+    }
 
     container.classList.add('fake-fullscreen-active');
     document.body.classList.add('fake-fullscreen-body');
 
-    // Rotate 90deg and swap dimensions
-    container.style.transform = `rotate(90deg)`;
-    container.style.transformOrigin = 'top left';
-    container.style.width = `${screenH}px`;
-    container.style.height = `${screenW}px`;
-    container.style.top = '0';
-    container.style.left = `${screenW}px`;
-    log(`📏 w=${screenH} h=${screenW} left=${screenW}`);
-
-    document.body.style.overflow = 'hidden';
     setIsFakeFullscreen(true);
     setIsFullscreen(true);
     log('✅ fake fullscreen applied');
@@ -383,10 +386,11 @@ export default function VideoPlayer() {
     if (!container) return;
     log('↩️ exiting fake fullscreen');
 
-    // Restore container back to its original parent
-    if (originalParentRef.current && !originalParentRef.current.contains(container)) {
-      originalParentRef.current.prepend(container);
-      log('↩️ container restored to original parent');
+    // Restore motion parent
+    const motionParent = container.closest('.player-fullscreen') as HTMLElement;
+    if (motionParent) {
+      motionParent.style.transform = '';
+      log('↩️ motion parent restored');
     }
 
     container.classList.remove('fake-fullscreen-active');
@@ -403,7 +407,7 @@ export default function VideoPlayer() {
       (screen.orientation as any)?.unlock?.();
     } catch (_) {}
     log('✅ fake fullscreen exited');
-  }, [isFull, log]);
+  }, [log]);
 
   const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -796,6 +800,22 @@ export default function VideoPlayer() {
     return (
       <>
         {debugOverlay}
+        
+        {isFakeFullscreen && createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              background: '#000',
+              zIndex: 99998,
+            }}
+          />,
+          document.body
+        )}
+        
         <motion.div
           drag={!isFullscreen ? "y" : false}
           dragControls={dragControls}
