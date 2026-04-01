@@ -6,6 +6,7 @@ import { startTrendingTicker } from './middleware/trendingTicker';
 import videosRouter from './routes/videos';
 import categoriesRouter from './routes/categories';
 import recommendationsRouter from './routes/recommendations';
+import historyRouter from './routes/history';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use('/videos', videosRouter);
 app.use('/categories', categoriesRouter);
 app.use('/recommendations', recommendationsRouter);
+app.use('/history', historyRouter);
 
 // Trending TICK endpoint (Internal polling for UI refresh)
 app.get('/trending-tick', (req, res) => {

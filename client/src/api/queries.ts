@@ -8,7 +8,7 @@ export function useVideos(category?: string) {
     queryKey: ['videos', category],
     queryFn: async () => {
       const url = category ? `${API_URL}/videos?category=${category}` : `${API_URL}/videos`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
       if (!res.ok) throw new Error('Failed to fetch videos');
       return res.json() as Promise<Video[]>;
     }
@@ -19,7 +19,7 @@ export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/categories`);
+      const res = await fetch(`${API_URL}/categories`, { signal: AbortSignal.timeout(4000) });
       if (!res.ok) throw new Error('Failed to fetch categories');
       return res.json() as Promise<Category[]>;
     }
@@ -30,7 +30,7 @@ export function useTrendingTicker(onUpdate?: (videos: Video[]) => void) {
   return useQuery({
     queryKey: ['trending-tick'],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/trending-tick`);
+      const res = await fetch(`${API_URL}/trending-tick`, { signal: AbortSignal.timeout(4000) });
       if (!res.ok) throw new Error('Failed to fetch trending tick');
       const data = await res.json() as Video[];
       if (onUpdate) onUpdate(data);
@@ -45,7 +45,7 @@ export function useRecommendations(watchedCategory: string, excludeId: string) {
     queryKey: ['recommendations', watchedCategory, excludeId],
     queryFn: async () => {
       const url = `${API_URL}/recommendations?watchedCategory=${watchedCategory}&excludeId=${excludeId}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
       if (!res.ok) throw new Error('Failed to fetch recommendations');
       return res.json() as Promise<Video[]>;
     },
@@ -58,7 +58,30 @@ export async function updateWatchProgress(videoId: string, progress: number) {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ progress }),
+    signal: AbortSignal.timeout(4000)
   });
   if (!res.ok) throw new Error('Failed to update progress');
   return res.json() as Promise<Video>;
+}
+
+export function useWatchHistory() {
+  return useQuery({
+    queryKey: ['watch-history'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/history`, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) throw new Error('Failed to fetch watch history');
+      return res.json() as Promise<(Video & { lastWatchedAt: number })[]>;
+    }
+  });
+}
+
+export function useContinueWatching() {
+  return useQuery({
+    queryKey: ['continue-watching'],
+    queryFn: async () => {
+      const res = await fetch(`${API_URL}/history/continue`, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) throw new Error('Failed to fetch continue-watching');
+      return res.json() as Promise<Video[]>;
+    }
+  });
 }

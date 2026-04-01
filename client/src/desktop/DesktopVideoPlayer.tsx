@@ -263,17 +263,11 @@ export default function DesktopVideoPlayer({ video, recommendations, onProgressU
     if (now - lastSyncRef.current > 5000 && dur > 0) {
       lastSyncRef.current = now;
       updateWatchProgress(video.id, ct / dur).then((updatedVideo) => {
-        queryClient.setQueriesData({ queryKey: ['videos'] }, (old: any) => {
+        queryClient.setQueriesData({ predicate: () => true }, (old: any) => {
           if (!Array.isArray(old)) return old;
-          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
-        });
-        queryClient.setQueriesData({ queryKey: ['recommendations'] }, (old: any) => {
-          if (!Array.isArray(old)) return old;
-          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
-        });
-        queryClient.setQueriesData({ queryKey: ['trending-tick'] }, (old: any) => {
-          if (!Array.isArray(old)) return old;
-          return old.map(v => v.id === updatedVideo.id ? { ...v, watchProgress: updatedVideo.watchProgress } : v);
+          return old.map((item: any) => 
+            item?.id === updatedVideo.id ? { ...item, watchProgress: updatedVideo.watchProgress } : item
+          );
         });
       }).catch(() => {});
     }

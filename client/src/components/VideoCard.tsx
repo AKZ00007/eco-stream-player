@@ -53,7 +53,7 @@ export default function VideoCard({ video, index = 0 }: VideoCardProps) {
 
         {/* Watch progress bar */}
         {video.watchProgress > 0 && (
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: 'rgba(255,255,255,0.15)' }}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.2)', zIndex: 10 }}>
             <div className="progress-bar" style={{ width: `${video.watchProgress * 100}%`, height: '100%' }} />
           </div>
         )}

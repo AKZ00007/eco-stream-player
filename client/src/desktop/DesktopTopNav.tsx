@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Moon, Sun, Bell, Leaf, Menu, Mic, Plus } from 'lucide-react';
+import { Search, Moon, Sun, Bell, Leaf, Menu, Mic, Plus, RotateCw } from 'lucide-react';
 import { useThemeStore } from '../store/useThemeStore';
 import { useSearchStore } from '../store/useSearchStore';
 import { useLayoutStore } from '../store/useLayoutStore';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { useQueryClient } from '@tanstack/react-query';
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
@@ -45,6 +46,7 @@ export default function DesktopTopNav() {
   const navigate = useNavigate();
   const { query, setQuery } = useSearchStore();
   const toggleSidebar = useLayoutStore(s => s.toggleSidebar);
+  const queryClient = useQueryClient();
 
   return (
     <div style={{
@@ -74,6 +76,7 @@ export default function DesktopTopNav() {
         <div 
           onClick={() => {
             usePlayerStore.getState().closePlayer();
+            queryClient.invalidateQueries();
             navigate('/');
           }}
           style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
@@ -144,15 +147,31 @@ export default function DesktopTopNav() {
           </button>
         )}
         {isDesktop && (
-          <button style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: 'var(--base-2)', border: 'none', borderRadius: 20,
-            padding: '8px 16px 8px 12px', cursor: 'pointer',
-            color: 'var(--ink-0)', fontSize: 14, fontWeight: 500
-          }}>
-            <Plus size={18} strokeWidth={2} />
-            Create
-          </button>
+          <>
+            <button 
+              onClick={() => queryClient.invalidateQueries()}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: '50%',
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--ink-0)'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--base-2)'}
+              onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              title="Refresh recommendations"
+            >
+              <RotateCw size={18} strokeWidth={2} />
+            </button>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'var(--base-2)', border: 'none', borderRadius: 20,
+              padding: '8px 16px 8px 12px', cursor: 'pointer',
+              color: 'var(--ink-0)', fontSize: 14, fontWeight: 500
+            }}>
+              <Plus size={18} strokeWidth={2} />
+              Create
+            </button>
+          </>
         )}
         <ThemeToggle />
         <button style={{

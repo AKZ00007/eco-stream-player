@@ -1,13 +1,15 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-import { useCategories, useVideos } from '../api/queries';
+import { useCategories, useVideos, useContinueWatching } from '../api/queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useSearchStore } from '../store/useSearchStore';
-import { ChevronRight, Search, Menu, Play, Compass, Moon, Sun } from 'lucide-react';
+import { ChevronRight, Search, Menu, Play, Compass, Moon, Sun, X, Home as HomeIcon, Bookmark, Settings } from 'lucide-react';
 import DesktopHome from '../desktop/DesktopHome';
 import { useThemeStore } from '../store/useThemeStore';
+import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import type { Video, Category } from '../types';
 
 function useIsDesktop() {
@@ -98,21 +100,31 @@ function BadgeTag({ video }: { video: Video }) {
 /* ── Single Video Card ── */
 function HomeVideoCard({ video }: { video: Video }) {
   const openPlayer = usePlayerStore((s) => s.openPlayer);
+  const { ref, isIntersecting, isVisible } = useIntersectionObserver({ threshold: 0.15, rootMargin: '0px' }, 600);
 
   return (
-    <div className="vcard" onClick={() => openPlayer(video)}>
-      <div className="vthumb">
+    <div ref={ref} className="vcard" onClick={() => openPlayer(video)} style={{ minHeight: 180 }}>
+      <div className="vthumb" style={{ background: 'var(--base-1)' }}>
         <div
           style={{ position: 'absolute', inset: 0 }}
           dangerouslySetInnerHTML={{ __html: thumbSVG(video.title) }}
         />
-        {/* Also show actual thumbnail image on top if it loads */}
-        <img
-          src={video.thumbnailUrl}
-          alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+        {/* Faux network latency skeleton state */}
+        {isIntersecting && !isVisible && (
+          <div className="skeleton" style={{ position: 'absolute', inset: 0, zIndex: 1, opacity: 0.8 }} />
+        )}
+        {/* Actual Image Fade-In */}
+        {isVisible && (
+          <motion.img
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            src={video.thumbnailUrl}
+            alt=""
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85, zIndex: 2 }}
+            onError={(e: any) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        )}
         <div className="vthumb-vignette" />
         <div className="vthumb-top">
           <BadgeTag video={video} />
@@ -122,7 +134,9 @@ function HomeVideoCard({ video }: { video: Video }) {
           <div className="duration">{video.duration}</div>
         </div>
         {video.watchProgress > 0 && (
-          <div className="vprog" style={{ width: `${video.watchProgress * 100}%` }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.2)', zIndex: 10 }}>
+            <div className="vprog" style={{ width: `${video.watchProgress * 100}%` }} />
+          </div>
         )}
       </div>
       <div className="vmeta">
@@ -142,8 +156,9 @@ function HomeVideoCard({ video }: { video: Video }) {
 
 /* ── Category Section ── */
 function HomeCategorySection({ category, onSeeAll }: { category: Category; onSeeAll: () => void }) {
-  const { data: videos, isLoading } = useVideos(category.slug);
+  const { data: videos, isLoading, isError } = useVideos(category.slug);
   const sectionInfo = SECTION_ICONS[category.slug] || { className: 's-forest', svg: '' };
+  const queryClient = useQueryClient();
 
   return (
     <div className={`section ${sectionInfo.className}`}>
@@ -157,12 +172,23 @@ function HomeCategorySection({ category, onSeeAll }: { category: Category; onSee
         </button>
       </div>
       <div className="card-row">
-        {isLoading
-          ? Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="skeleton" style={{ width: 196, height: 150, borderRadius: 14, flexShrink: 0 }} />
-            ))
-          : videos?.map((v) => <HomeVideoCard key={v.id} video={v} />)
-        }
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="skeleton" style={{ width: 196, height: 150, borderRadius: 14, flexShrink: 0 }} />
+          ))
+        ) : isError ? (
+          <div style={{ width: '100%', height: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--base-1)', borderRadius: 14, border: '1px solid var(--border-sub)', gap: 12 }}>
+            <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>Failed to load {category.category}</span>
+            <button 
+              onClick={() => queryClient.invalidateQueries()}
+              style={{ background: 'var(--emerald)', color: '#fff', border: 'none', padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600 }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          videos?.map((v) => <HomeVideoCard key={v.id} video={v} />)
+        )}
       </div>
     </div>
   );
@@ -195,25 +221,27 @@ function ThemeToggle() {
    ══════════════════════════════════════════════ */
 export default function Home() {
   const isDesktop = useIsDesktop();
-  const { data: categories, isLoading } = useCategories();
-  const { data: allVideos } = useVideos('');
+  const { data: categories, isLoading: isCatsLoading, isError: isCatsError } = useCategories();
+  const { data: allVideos, isError: isAllVideosError } = useVideos('');
+  const { data: continueWatching } = useContinueWatching();
   const queryClient = useQueryClient();
   const openPlayer = usePlayerStore((s) => s.openPlayer);
   const navigate = useNavigate();
 
   const { query, setQuery } = useSearchStore();
   const [isSearchMode, setIsSearchMode] = useState(false);
-
   const [activeFilterSlug, setActiveFilterSlug] = useState<string>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startY = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const ptrRef = useRef<HTMLDivElement>(null);
 
-  // Pick featured video: highest impact score
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Pick featured video: find the first trending video, fallback to most recent/first
   const featuredVideo = useMemo(() => {
     if (!allVideos?.length) return null;
-    return allVideos.reduce((best, v) => (v.impactScore > best.impactScore ? v : best), allVideos[0]);
+    return allVideos.find(v => v.isTrending) || allVideos[0];
   }, [allVideos]);
 
   // Pull-to-refresh
@@ -270,7 +298,10 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <div className="brand">
+            <div className="brand" onClick={() => {
+              queryClient.invalidateQueries();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }} style={{ cursor: 'pointer' }}>
               <div className="brand-mark">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="#fff">
                   <path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 008 20c11 0 14-17 14-17-1 2-8 2-8 2s7-2 3 1z" />
@@ -283,7 +314,7 @@ export default function Home() {
               <div className="ibtn" onClick={() => setIsSearchMode(true)}>
                 <Search size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
               </div>
-              <div className="ibtn" >
+              <div className="ibtn" onClick={() => setIsMenuOpen(true)}>
                 <Menu size={16} stroke="var(--ink-1)" strokeWidth={1.8} />
               </div>
             </div>
@@ -341,45 +372,61 @@ export default function Home() {
 
         {/* Hero Feature (Hide during search) */}
         {!query && featuredVideo && activeFilterSlug === 'all' && (
-          <div className="featured" onClick={() => openPlayer(featuredVideo)}>
-            <img 
-              src={featuredVideo.thumbnailUrl} 
-              alt="" 
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} 
-            />
-            <div className="feat-vignette" />
-            <div className="feat-top">
-              <div className="feat-tag">
-                <svg viewBox="0 0 10 10" width="9" height="9" fill="#fff">
+          <div
+            onClick={() => openPlayer(featuredVideo)}
+            style={{ margin: '0 14px 20px', cursor: 'pointer' }}
+          >
+            {/* Thumbnail — clean, no overlays */}
+            <div style={{ position: 'relative', width: '100%', borderRadius: 16, overflow: 'hidden', aspectRatio: '16/9' }}>
+              <img
+                src={featuredVideo.thumbnailUrl}
+                alt={featuredVideo.title}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+              {/* Play button overlay only — small, unobtrusive */}
+              <div style={{
+                position: 'absolute', bottom: 10, right: 10,
+                width: 40, height: 40, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Play size={16} fill="#fff" color="#fff" />
+              </div>
+              {/* TRENDING badge — top-left, solid opaque pill */}
+              <div style={{
+                position: 'absolute', top: 10, left: 10,
+                background: '#ff1744', color: '#fff',
+                fontSize: 10, fontWeight: 800, letterSpacing: '0.5px',
+                padding: '4px 10px', borderRadius: 100,
+                display: 'flex', alignItems: 'center', gap: 5
+              }}>
+                <svg viewBox="0 0 10 10" width="8" height="8" fill="#fff">
                   <polygon points="5,.5 6.5,3.5 9.5,4 7.5,6 8,9 5,7.5 2,9 2.5,6 .5,4 3.5,3.5" />
                 </svg>
-                Editor's Pick
-              </div>
-              <div className="feat-ring">
-                <svg viewBox="0 0 52 52" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-                  <circle cx="26" cy="26" r="22" fill="none" stroke="rgba(62,207,142,0.12)" strokeWidth="3.5" />
-                  <circle cx="26" cy="26" r="22" fill="none" stroke="#3ecf8e" strokeWidth="3.5"
-                    strokeDasharray="138.2" strokeDashoffset={138.2 - (138.2 * featuredVideo.impactScore / 100)}
-                    strokeLinecap="round" />
-                </svg>
-                <span className="feat-score">{featuredVideo.impactScore}</span>
+                TRENDING
               </div>
             </div>
-            <div className="feat-bottom">
-              <div className="feat-meta">
-                {featuredVideo.categorySlug?.replace(/-/g, ' ')} · {featuredVideo.duration}
+
+            {/* Text info — BELOW the thumbnail, always readable */}
+            <div style={{ padding: '10px 4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>
+                {featuredVideo.categorySlug?.replace(/-/g, ' ')} &middot; {featuredVideo.duration}
               </div>
-              <div className="feat-title">{featuredVideo.title}</div>
-              <div className="feat-footer" style={{ marginTop: 10 }}>
-                <div className="feat-stats">
-                  <div className="fstat">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(62,207,142,0.15)', color: 'var(--emerald)', border: '1px solid rgba(62,207,142,0.25)', padding: '5px 12px', borderRadius: 100, fontSize: 13, fontWeight: 700 }}>
-                       Impact {featuredVideo.impactScore}
-                    </div>
-                  </div>
-                </div>
-                <div className="feat-play">
-                  <Play size={18} fill="#fff" color="#fff" />
+              <div style={{
+                fontSize: 16, fontWeight: 700, color: 'var(--ink-0)',
+                lineHeight: 1.35, marginBottom: 8,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+              }}>
+                {featuredVideo.title}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  background: 'rgba(62,207,142,0.12)', color: 'var(--emerald)',
+                  border: '1px solid rgba(62,207,142,0.3)',
+                  padding: '4px 10px', borderRadius: 100, fontSize: 12, fontWeight: 700
+                }}>
+                  Impact {featuredVideo.impactScore}
                 </div>
               </div>
             </div>
@@ -400,8 +447,36 @@ export default function Home() {
           </div>
         )}
 
+        {/* Recommended for You Section (No Header) */}
+        {!query && continueWatching && continueWatching.length > 0 && activeFilterSlug === 'all' && (
+          <div className="section" style={{ paddingTop: 8 }}>
+            <div className="card-row">
+              {continueWatching.map((v) => <HomeVideoCard key={v.id} video={v} />)}
+            </div>
+          </div>
+        )}
+
+        {/* Global Error State for entire feed */}
+        {(isCatsError || isAllVideosError) && !query && (
+          <div style={{ padding: '60px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+            <div style={{ padding: 20, background: 'var(--base-1)', borderRadius: '50%' }}>
+              <svg viewBox="0 0 24 24" width="32" height="32" stroke="var(--ink-2)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2l20 20M8.5 4.5A10.5 10.5 0 0122 12M5 5.5A10.5 10.5 0 0012 22a10.5 10.5 0 005.5-1.5M16 8a4.5 4.5 0 011.5 5.5"/></svg>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 18, color: 'var(--ink-0)', fontWeight: 600, marginBottom: 6 }}>Connection Timeout</h3>
+              <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5, maxWidth: 280, margin: '0 auto' }}>Please check your internet connection and try again.</p>
+            </div>
+            <button 
+              onClick={() => queryClient.invalidateQueries()}
+              style={{ background: 'var(--emerald)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 24, fontSize: 14, fontWeight: 600, marginTop: 8 }}
+            >
+              Retry Connection
+            </button>
+          </div>
+        )}
+
         {/* Category Sections (Hide during search) */}
-        {!query && (isLoading
+        {!query && !(isCatsError || isAllVideosError) && (isCatsLoading
           ? Array.from({ length: 3 }).map((_, i) => (
               <div key={i} style={{ marginBottom: 34 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 22px', marginBottom: 15 }}>
@@ -465,6 +540,75 @@ export default function Home() {
           <span className="bni-lbl">Profile</span>
         </button>
       </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {isMenuOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column'
+        }}>
+          {/* Backdrop */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMenuOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} 
+          />
+          
+          {/* Menu Panel */}
+          <motion.div 
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            style={{ 
+              position: 'absolute', top: 0, bottom: 0, left: 0, width: 280, 
+              background: 'var(--base-0)', borderRight: '1px solid var(--border-sub)',
+              display: 'flex', flexDirection: 'column', padding: '24px 16px', zIndex: 2
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #00e676, #00bcd4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Compass size={18} color="#000" />
+                </div>
+                <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink-0)' }}>Eco-Stream</span>
+              </div>
+              <button 
+                onClick={() => setIsMenuOpen(false)}
+                style={{ background: 'var(--base-2)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-0)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[{ icon: <HomeIcon size={20} />, label: 'Discover', active: true },
+                { icon: <Compass size={20} />, label: 'Explore' },
+                { icon: <Bookmark size={20} />, label: 'Saved' },
+                { icon: <Settings size={20} />, label: 'Settings' }].map((item, i) => (
+                <div key={i} style={{ 
+                  display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', 
+                  borderRadius: 12, background: item.active ? 'var(--base-1)' : 'transparent',
+                  color: item.active ? 'var(--emerald)' : 'var(--ink-1)',
+                  fontWeight: item.active ? 700 : 500, cursor: 'pointer'
+                }}>
+                  {item.icon}
+                  <span style={{ fontSize: 16 }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+            
+            <div style={{ marginTop: 'auto', padding: '16px', background: 'var(--base-1)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #00e676, #00bcd4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 700 }}>A</div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-0)' }}>Alex User</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>Premium Member</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

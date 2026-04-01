@@ -385,10 +385,8 @@ html, body {
   border: 1px solid rgba(255,255,255,.1);
 }
 .vprog {
-  position: absolute; bottom: 0; left: 0; height: 2.5px;
-  background: linear-gradient(90deg, #3ecf8e, #1da870);
-  border-radius: 0 2px 0 0;
-  box-shadow: 0 0 6px rgba(62,207,142,.5);
+  position: absolute; bottom: 0; left: 0; height: 100%;
+  background: #ff0000;
 }
 .vmeta { padding: 9px 2px 0; }
 .vtitle {
@@ -500,8 +498,8 @@ html, body {
 
 /* ── Progress bar ── */
 .progress-bar {
-  background: linear-gradient(90deg, #3ecf8e, #1da870);
-  border-radius: 9999px;
+  background: #ff0000;
+  border-radius: 0 2px 2px 0;
   transition: width 0.1s linear;
 }
 

@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Leaf, MoreVertical } from 'lucide-react';
+import { Leaf, MoreVertical } from 'lucide-react';
 import type { Video } from '../types';
 import { getImpactClass } from '../utils/helpers';
+import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 
 // Category → channel name mapping for desktop display
 const CHANNEL_NAMES: Record<string, string> = {
@@ -24,9 +25,11 @@ import { useNavigate } from 'react-router-dom';
 export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardProps) {
   const navigate = useNavigate();
   const channel = CHANNEL_NAMES[video.categorySlug] ?? 'Eco-Stream';
+  const { ref, isIntersecting, isVisible } = useIntersectionObserver({ threshold: 0.15, rootMargin: '0px' }, 600);
 
   return (
     <motion.article
+      ref={ref}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04, duration: 0.3 }}
@@ -35,14 +38,24 @@ export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardP
     >
       {/* ── Thumbnail ── */}
       <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', background: '#16191f' }}>
-        <motion.img
-          layoutId={`video-thumb-${video.id}`}
-          src={video.thumbnailUrl}
-          alt={video.title}
-          loading="lazy"
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.3s ease' }}
-          whileHover={{ scale: 1.04 }}
-        />
+        
+        {/* Fake network delay skeleton when intersected */}
+        {isIntersecting && !isVisible && (
+          <div className="skeleton" style={{ width: '100%', height: '100%', position: 'absolute', inset: 0, zIndex: 1 }} />
+        )}
+
+        {isVisible && (
+          <motion.img
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            layoutId={`video-thumb-${video.id}`}
+            src={video.thumbnailUrl}
+            alt={video.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', zIndex: 2, position: 'relative' }}
+            whileHover={{ scale: 1.04 }}
+          />
+        )}
 
         {/* Gradient overlay */}
         <div style={{
@@ -64,7 +77,7 @@ export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardP
 
         {/* Watch progress */}
         {video.watchProgress > 0 && (
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: 'rgba(255,255,255,0.12)' }}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.2)', zIndex: 10 }}>
             <div className="progress-bar" style={{ height: '100%', width: `${video.watchProgress * 100}%` }} />
           </div>
         )}
@@ -73,20 +86,23 @@ export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardP
         <AnimatePresence>
           {video.isTrending && (
             <motion.div
-              key="hot"
+              key="trending"
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0, opacity: 0 }}
               style={{
                 position: 'absolute', top: 8, left: 8,
-                display: 'flex', alignItems: 'center', gap: 4,
-                background: 'linear-gradient(135deg, #ff6b35, #ff1744)',
-                padding: '3px 9px', borderRadius: 20,
-                fontSize: 10, fontWeight: 800, color: '#fff',
-                textTransform: 'uppercase', letterSpacing: '0.06em',
+                background: '#ff1744', color: '#fff',
+                fontSize: 10, fontWeight: 800, letterSpacing: '0.5px',
+                padding: '4px 10px', borderRadius: 100,
+                display: 'flex', alignItems: 'center', gap: 5,
+                zIndex: 10
               }}
             >
-              <Flame size={10} /> HOT
+              <svg viewBox="0 0 10 10" width="8" height="8" fill="#fff">
+                <polygon points="5,.5 6.5,3.5 9.5,4 7.5,6 8,9 5,7.5 2,9 2.5,6 .5,4 3.5,3.5" />
+              </svg>
+              TRENDING
             </motion.div>
           )}
         </AnimatePresence>

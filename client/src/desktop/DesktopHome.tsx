@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import DesktopVideoCard from './DesktopVideoCard';
-import { useVideos, useCategories } from '../api/queries';
+import { useVideos, useCategories, useContinueWatching } from '../api/queries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearchStore } from '../store/useSearchStore';
 import type { Category } from '../types';
 
@@ -24,9 +25,10 @@ function DesktopSkeletonCard() {
 }
 
 function DesktopCategoryShelf({ category }: { category: Category }) {
-  const { data: videos, isLoading } = useVideos(category.slug);
+  const { data: videos, isLoading, isError } = useVideos(category.slug);
   const scrollRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
@@ -113,11 +115,140 @@ function DesktopCategoryShelf({ category }: { category: Category }) {
             scrollSnapType: 'x mandatory', scrollBehavior: 'smooth'
           }}
         >
+          {isLoading ? (
+             Array.from({length: 4}).map((_, i) => (
+               <div key={i} style={{ width: 380, flexShrink: 0 }}><DesktopSkeletonCard /></div>
+             ))
+          ) : isError ? (
+            <div style={{ width: 380, flexShrink: 0, height: 213, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--base-1)', borderRadius: 12, border: '1px solid var(--border-sub)', gap: 12 }}>
+              <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>Failed to load {category.category}</span>
+              <button 
+                onClick={() => queryClient.invalidateQueries()}
+                style={{ background: 'var(--emerald)', color: '#fff', border: 'none', padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            videos?.map((v, i) => (
+               <div key={v.id} style={{ width: 380, flexShrink: 0, scrollSnapAlign: 'start' }}>
+                 <DesktopVideoCard video={v} index={i} />
+               </div>
+            ))
+          )}
+        </div>
+
+        <AnimatePresence>
+          {showRight && (
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => scroll('right')}
+              style={{
+                 position: 'absolute', right: -20, top: '50%', transform: 'translateY(-50%)', zIndex: 10,
+                 width: 40, height: 40, borderRadius: '50%', background: 'var(--base-0)', border: '1px solid var(--border-sub)',
+                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 cursor: 'pointer', color: 'var(--ink-0)'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--base-1)'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--base-0)'}
+            >
+              <ChevronRight size={24} strokeWidth={1.5} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function DesktopContinueWatchingShelf() {
+  const { data: videos, isLoading } = useContinueWatching();
+  const { data: allVideos } = useVideos('');
+  
+  const displayVideos = useMemo(() => {
+    if (!videos) return null;
+    let list = [...videos];
+    if (allVideos) {
+      const trendingVideo = allVideos.find(v => v.isTrending);
+      if (trendingVideo) {
+        // Remove it if it's already in the list
+        list = list.filter(v => v.id !== trendingVideo.id);
+        // Prepend to the front
+        list.unshift(trendingVideo);
+      }
+    }
+    return list;
+  }, [videos, allVideos]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(true);
+
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setShowLeft(scrollLeft > 10);
+      setShowRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    const timer = setTimeout(checkScroll, 500);
+    return () => clearTimeout(timer);
+  }, [displayVideos, isLoading]);
+
+  if (!isLoading && (!displayVideos || displayVideos.length === 0)) return null;
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const amount = direction === 'left' ? -800 : 800;
+      scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 12, position: 'relative' }}>
+      {/* Horizontal Scroll List */}
+      <div style={{ position: 'relative' }}>
+        <AnimatePresence>
+          {showLeft && (
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => scroll('left')}
+              style={{
+                 position: 'absolute', left: -20, top: '50%', transform: 'translateY(-50%)', zIndex: 10,
+                 width: 40, height: 40, borderRadius: '50%', background: 'var(--base-0)', border: '1px solid var(--border-sub)',
+                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 cursor: 'pointer', color: 'var(--ink-0)'
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--base-1)'}
+              onMouseOut={e => e.currentTarget.style.background = 'var(--base-0)'}
+            >
+              <ChevronLeft size={24} strokeWidth={1.5} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <div 
+          ref={scrollRef}
+          onScroll={checkScroll}
+          className="scroll-area hide-scrollbar"
+          style={{
+            display: 'flex', gap: 20, overflowX: 'auto', paddingBottom: 16,
+            scrollSnapType: 'x mandatory', scrollBehavior: 'smooth'
+          }}
+        >
           {isLoading 
             ? Array.from({length: 4}).map((_, i) => (
                <div key={i} style={{ width: 380, flexShrink: 0 }}><DesktopSkeletonCard /></div>
               ))
-            : videos?.map((v, i) => (
+            : displayVideos?.map((v, i) => (
                <div key={v.id} style={{ width: 380, flexShrink: 0, scrollSnapAlign: 'start' }}>
                  <DesktopVideoCard video={v} index={i} />
                </div>
@@ -151,9 +282,10 @@ function DesktopCategoryShelf({ category }: { category: Category }) {
 }
 
 export default function DesktopHome() {
-  const { data: categories } = useCategories();
+  const { data: categories, isError: isCatsError } = useCategories();
   const [activeSlug, setActiveSlug] = useState('all');
   const { query: searchQuery } = useSearchStore();
+  const queryClient = useQueryClient();
 
   const tagsScrollRef = useRef<HTMLDivElement>(null);
   const [showTagsLeft, setShowTagsLeft] = useState(false);
@@ -181,7 +313,7 @@ export default function DesktopHome() {
   };
 
   // Fetch videos for active category (undefined = all)
-  const { data: filteredVideos, isLoading } = useVideos(activeSlug === 'all' ? undefined : activeSlug);
+  const { data: filteredVideos, isLoading, isError: isFilteredError } = useVideos(activeSlug === 'all' ? undefined : activeSlug);
 
   const searchFiltered = useMemo(() => {
     if (!filteredVideos) return [];
@@ -307,8 +439,29 @@ export default function DesktopHome() {
         className="scroll-area"
         style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 80px' }}
       >
+        {/* Global Error State */}
+        {(isCatsError || isFilteredError) && (
+          <div style={{ padding: '100px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+            <div style={{ padding: 24, background: 'var(--base-1)', borderRadius: '50%' }}>
+              <svg viewBox="0 0 24 24" width="48" height="48" stroke="var(--ink-2)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M2 2l20 20M8.5 4.5A10.5 10.5 0 0122 12M5 5.5A10.5 10.5 0 0012 22a10.5 10.5 0 005.5-1.5M16 8a4.5 4.5 0 011.5 5.5"/></svg>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 24, color: 'var(--ink-0)', fontWeight: 600, marginBottom: 8 }}>Connection Timeout</h3>
+              <p style={{ fontSize: 15, color: 'var(--ink-2)', lineHeight: 1.5, maxWidth: 360, margin: '0 auto' }}>Please check your internet connection and try again. Sometimes a quick refresh helps.</p>
+            </div>
+            <button 
+              onClick={() => queryClient.invalidateQueries()}
+              style={{ background: 'var(--emerald)', cursor: 'pointer', color: '#fff', border: 'none', padding: '12px 32px', borderRadius: 24, fontSize: 15, fontWeight: 600, marginTop: 12, transition: 'opacity 0.2s' }}
+              onMouseOver={e => e.currentTarget.style.opacity = '0.9'}
+              onMouseOut={e => e.currentTarget.style.opacity = '1'}
+            >
+              Retry Connection
+            </button>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
-          {activeSlug === 'all' && searchQuery.trim().length === 0 ? (
+          {!isCatsError && !isFilteredError && activeSlug === 'all' && searchQuery.trim().length === 0 ? (
             <motion.div
               key="shelves"
               initial={{ opacity: 0 }}
@@ -316,11 +469,12 @@ export default function DesktopHome() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
+              <DesktopContinueWatchingShelf />
               {categories?.map((c) => (
                 <DesktopCategoryShelf key={c.slug} category={c} />
               ))}
             </motion.div>
-          ) : (
+          ) : !isCatsError && !isFilteredError ? (
             <motion.div
               key={activeSlug}
               initial={{ opacity: 0 }}
@@ -340,7 +494,7 @@ export default function DesktopHome() {
                 ))
               }
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         {/* Empty state */}
