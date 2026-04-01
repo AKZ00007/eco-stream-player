@@ -104,6 +104,7 @@ html, body {
   left: 0 !important;
   z-index: 9999 !important;
   background: #000 !important;
+  aspect-ratio: auto !important;
   touch-action: none;
 }
 body.fake-fullscreen-body > *:not(#root) {

@@ -484,7 +484,7 @@ export default function VideoPlayer() {
         onPointerDown={(e) => {
           if (isFull && !isFullscreen && !isScrubbing) dragControls.start(e);
         }}
-        style={{ position: 'relative', width: '100%', height: isFull ? 'auto' : '100%', aspectRatio: isFull ? '16/9' : undefined, backgroundColor: '#000', flexShrink: 0, touchAction: 'none' }}
+        style={{ position: 'relative', width: '100%', height: isFull ? 'auto' : '100%', aspectRatio: isFakeFullscreen ? 'unset' : isFull ? '16/9' : undefined, backgroundColor: '#000', flexShrink: 0, touchAction: 'none' }}
         onClick={isFull ? handlePlayerTap : maximizePlayer}
       >
         <motion.video
