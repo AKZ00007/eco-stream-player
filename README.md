@@ -1,5 +1,7 @@
 # Eco-Stream Player
 
+**🚀 [Live Demo: eco-stream-player-hr38.vercel.app](https://eco-stream-player-hr38.vercel.app/)**
+
 Eco-Stream is a mobile-first, highly interactive, premium video streaming platform tailored specifically for climate and biodiversity content. It emphasizes smooth gesture controls, seamless page-to-page video transitions, dynamic recommendation engines, and high-performance React UI components capable of rendering at ~60fps on mobile browsers.
 
 ##  Setup Instructions
