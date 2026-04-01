@@ -14,11 +14,17 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
-// Routes
+// Routes (Local dev)
 app.use('/videos', videosRouter);
 app.use('/categories', categoriesRouter);
 app.use('/recommendations', recommendationsRouter);
 app.use('/history', historyRouter);
+
+// Routes (Vercel Serverless)
+app.use('/api/videos', videosRouter);
+app.use('/api/categories', categoriesRouter);
+app.use('/api/recommendations', recommendationsRouter);
+app.use('/api/history', historyRouter);
 
 // Trending TICK endpoint (Internal polling for UI refresh)
 app.get('/trending-tick', (req, res) => {
