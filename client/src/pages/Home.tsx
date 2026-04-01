@@ -99,12 +99,12 @@ function BadgeTag({ video }: { video: Video }) {
 }
 
 /* ── Single Video Card ── */
-function HomeVideoCard({ video }: { video: Video }) {
+function HomeVideoCard({ video, isVertical }: { video: Video; isVertical?: boolean }) {
   const openPlayer = usePlayerStore((s) => s.openPlayer);
   const { ref, isIntersecting, isVisible } = useIntersectionObserver({ threshold: 0.15, rootMargin: '0px' }, 600);
 
   return (
-    <div ref={ref} className="vcard" onClick={() => openPlayer(video)} style={{ minHeight: 180 }}>
+    <div ref={ref} className="vcard" onClick={() => openPlayer(video)} style={{ minHeight: 180, width: isVertical ? '100%' : undefined }}>
       <div className="vthumb" style={{ background: 'var(--base-1)' }}>
         <div
           style={{ position: 'absolute', inset: 0 }}
@@ -156,7 +156,7 @@ function HomeVideoCard({ video }: { video: Video }) {
 }
 
 /* ── Category Section ── */
-function HomeCategorySection({ category, onSeeAll }: { category: Category; onSeeAll: () => void }) {
+function HomeCategorySection({ category, onSeeAll, isVertical }: { category: Category; onSeeAll: () => void; isVertical?: boolean }) {
   const { data: videos, isLoading, isError } = useVideos(category.slug);
   const sectionInfo = SECTION_ICONS[category.slug] || { className: 's-forest', svg: '' };
   const queryClient = useQueryClient();
@@ -168,14 +168,16 @@ function HomeCategorySection({ category, onSeeAll }: { category: Category; onSee
           <div className="sec-icon" dangerouslySetInnerHTML={{ __html: sectionInfo.svg }} />
           <span className="sec-title">{category.category}</span>
         </div>
-        <button className="see-all" onClick={onSeeAll}>
-          See all <ChevronRight size={13} strokeWidth={2} />
-        </button>
+        {!isVertical && (
+          <button className="see-all" onClick={onSeeAll}>
+            See all <ChevronRight size={13} strokeWidth={2} />
+          </button>
+        )}
       </div>
-      <div className="card-row">
+      <div className={isVertical ? '' : 'card-row'} style={isVertical ? { display: 'flex', flexDirection: 'column', gap: 16, padding: '0 22px' } : undefined}>
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton" style={{ width: 196, height: 150, borderRadius: 14, flexShrink: 0 }} />
+            <div key={i} className="skeleton" style={{ width: isVertical ? '100%' : 196, height: isVertical ? ((window.innerWidth - 44) * 9 / 16) : 150, borderRadius: 14, flexShrink: 0 }} />
           ))
         ) : isError ? (
           <div style={{ width: '100%', height: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--base-1)', borderRadius: 14, border: '1px solid var(--border-sub)', gap: 12 }}>
@@ -188,7 +190,7 @@ function HomeCategorySection({ category, onSeeAll }: { category: Category; onSee
             </button>
           </div>
         ) : (
-          videos?.map((v) => <HomeVideoCard key={v.id} video={v} />)
+          videos?.map((v) => <HomeVideoCard key={v.id} video={v} isVertical={isVertical} />)
         )}
       </div>
     </div>
@@ -498,6 +500,7 @@ export default function Home() {
                 <HomeCategorySection
                   key={cat.slug}
                   category={cat}
+                  isVertical={activeFilterSlug !== 'all'}
                   onSeeAll={() => {
                     navigate(`/category/${cat.slug}`);
                   }}
