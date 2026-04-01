@@ -264,7 +264,8 @@ export function recomputeScores() {
       INITIAL_DATA.find((i) => i.title === v.title)?.impactScore || 80,
       v.categorySlug,
       v.title,
-      v.isTrending
+      v.isTrending,
+      v.description
     ),
   }));
 }

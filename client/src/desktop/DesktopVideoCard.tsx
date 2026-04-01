@@ -107,15 +107,7 @@ export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardP
           )}
         </AnimatePresence>
 
-        {/* Impact badge (top right) */}
-        <div className={getImpactClass(video.impactScore)} style={{
-          position: 'absolute', top: 8, right: video.isTrending ? undefined : 8,
-          display: 'flex', alignItems: 'center', gap: 3,
-          padding: '3px 8px', borderRadius: 20,
-          fontSize: 10, fontWeight: 800, color: '#000',
-        }}>
-          <Leaf size={9} /> {video.impactScore}
-        </div>
+
       </div>
 
       {/* ── Card Metadata Row (YouTube style) ── */}
@@ -141,9 +133,16 @@ export default function DesktopVideoCard({ video, index = 0 }: DesktopVideoCardP
           }}>
             {video.title}
           </p>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--ink-1)', fontWeight: 400 }}>
-            {channel}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 13, color: 'var(--ink-1)', fontWeight: 400 }}>{channel}</span>
+            <div className={getImpactClass(video.impactScore)} style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              padding: '2px 7px', borderRadius: 20,
+              fontSize: 10, fontWeight: 800, color: '#000',
+            }}>
+              <Leaf size={9} /> {video.impactScore}
+            </div>
+          </div>
         </div>
 
         {/* 3-dot menu */}
