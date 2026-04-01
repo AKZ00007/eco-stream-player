@@ -1,0 +1,82 @@
+/* Notification Popup Styles */
+
+.popup-mobile {
+  position: fixed;
+  bottom: 80px; /* Above bottom nav */
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: center;
+  z-index: 9999;
+  pointer-events: none; /* So clicks pass through the container */
+}
+
+.popup-desktop {
+  position: fixed;
+  top: 80px; /* Below top nav */
+  right: 24px;
+  min-width: 280px;
+  background: var(--ink-0); /* Inverted for high contrast */
+  color: var(--base-0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  animation: fadeSlideInDesktop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  font-weight: 500;
+}
+
+.popup-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  pointer-events: auto; /* Re-enable clicks inside the content */
+}
+
+.popup-content span {
+  flex: 1;
+}
+
+.popup-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px; /* easier to tap */
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.popup-close:hover {
+  opacity: 1;
+}
+
+@keyframes fadeSlideInDesktop {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeSlideInMobile {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile specific styling inside the container */
+.popup-mobile .popup-content {
+  background: var(--ink-0); /* Inverted for high contrast */
+  color: var(--base-0);
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  animation: fadeSlideInMobile 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  max-width: 400px;
+  font-size: 14px;
+  font-weight: 500;
+}

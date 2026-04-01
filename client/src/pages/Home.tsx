@@ -9,6 +9,7 @@ import { useSearchStore } from '../store/useSearchStore';
 import { ChevronRight, Search, Menu, Play, Compass, Moon, Sun, X, Home as HomeIcon, Bookmark, Settings } from 'lucide-react';
 import DesktopHome from '../desktop/DesktopHome';
 import { useThemeStore } from '../store/useThemeStore';
+import { useNotification } from '../hooks/useNotification';
 import { useIntersectionObserver } from '../hooks/useIntersectionObserver';
 import type { Video, Category } from '../types';
 
@@ -237,6 +238,7 @@ export default function Home() {
   const ptrRef = useRef<HTMLDivElement>(null);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { showNotification } = useNotification();
 
   // Pick featured video: find the first trending video, fallback to most recent/first
   const featuredVideo = useMemo(() => {
@@ -514,26 +516,26 @@ export default function Home() {
           </svg>
           <span className="bni-lbl">Home</span>
         </button>
-        <button className="bni">
+        <button className="bni" onClick={() => showNotification()}>
           <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="var(--ink-2)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
           </svg>
           <span className="bni-lbl">Explore</span>
         </button>
-        <button className="bni" style={{ position: 'relative' }}>
+        <button className="bni" style={{ position: 'relative' }} onClick={() => showNotification()}>
           <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="var(--ink-2)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
           <span className="bni-lbl">Impact</span>
           <div className="bni-pip" />
         </button>
-        <button className="bni">
+        <button className="bni" onClick={() => showNotification()}>
           <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="var(--ink-2)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
           </svg>
           <span className="bni-lbl">Saved</span>
         </button>
-        <button className="bni">
+        <button className="bni" onClick={() => showNotification()}>
           <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="var(--ink-2)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
@@ -592,6 +594,12 @@ export default function Home() {
                   borderRadius: 12, background: item.active ? 'var(--base-1)' : 'transparent',
                   color: item.active ? 'var(--emerald)' : 'var(--ink-1)',
                   fontWeight: item.active ? 700 : 500, cursor: 'pointer'
+                }}
+                onClick={() => {
+                  if (!item.active) {
+                    setIsMenuOpen(false);
+                    showNotification();
+                  }
                 }}>
                   {item.icon}
                   <span style={{ fontSize: 16 }}>{item.label}</span>
@@ -599,7 +607,11 @@ export default function Home() {
               ))}
             </div>
             
-            <div style={{ marginTop: 'auto', padding: '16px', background: 'var(--base-1)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ marginTop: 'auto', padding: '16px', background: 'var(--base-1)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+            onClick={() => {
+              setIsMenuOpen(false);
+              showNotification();
+            }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #00e676, #00bcd4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 700 }}>A</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-0)' }}>Alex User</span>

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Home as HomeIcon, Compass, BookMarked, Settings } from 'lucide-react';
+import { useNotification } from './hooks/useNotification';
 import Home from './pages/Home';
 import CategoryPlaylist from './pages/CategoryPlaylist';
 import PlayerRoot from './components/PlayerRoot';
@@ -32,6 +33,7 @@ const queryClient = new QueryClient({
 
 function Sidebar({ isWatchPage }: { isWatchPage?: boolean }) {
   const { isSidebarExpanded } = useLayoutStore();
+  const { showNotification } = useNotification();
 
   const navItems = [
     { icon: <HomeIcon size={isSidebarExpanded ? 20 : 24} />, label: 'Discover', active: true },
@@ -79,6 +81,7 @@ function Sidebar({ isWatchPage }: { isWatchPage?: boolean }) {
             }}
             onMouseOver={e => !item.active && (e.currentTarget.style.background = 'var(--base-1)')}
             onMouseOut={e => !item.active && (e.currentTarget.style.background = 'transparent')}
+            onClick={() => !item.active && showNotification()}
           >
             {item.icon}
             <span style={{ 

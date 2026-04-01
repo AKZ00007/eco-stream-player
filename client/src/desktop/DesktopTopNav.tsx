@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Moon, Sun, Bell, Leaf, Menu, Mic, Plus, RotateCw } from 'lucide-react';
+import { useNotification } from '../hooks/useNotification';
 import { useThemeStore } from '../store/useThemeStore';
 import { useSearchStore } from '../store/useSearchStore';
 import { useLayoutStore } from '../store/useLayoutStore';
@@ -47,6 +48,7 @@ export default function DesktopTopNav() {
   const { query, setQuery } = useSearchStore();
   const toggleSidebar = useLayoutStore(s => s.toggleSidebar);
   const queryClient = useQueryClient();
+  const { showNotification } = useNotification();
 
   return (
     <div style={{
@@ -122,7 +124,8 @@ export default function DesktopTopNav() {
             width: 40, height: 40, borderRadius: '50%', marginLeft: 16,
             background: 'var(--base-2)', border: 'none', cursor: 'pointer',
             color: 'var(--ink-0)'
-          }} title="Search with your voice">
+          }} title="Search with your voice"
+          onClick={() => showNotification()}>
             <Mic size={18} strokeWidth={1.5} />
           </button>
         </div>
@@ -167,7 +170,8 @@ export default function DesktopTopNav() {
               background: 'var(--base-2)', border: 'none', borderRadius: 20,
               padding: '8px 16px 8px 12px', cursor: 'pointer',
               color: 'var(--ink-0)', fontSize: 14, fontWeight: 500
-            }}>
+            }}
+            onClick={() => showNotification()}>
               <Plus size={18} strokeWidth={2} />
               Create
             </button>
@@ -182,6 +186,7 @@ export default function DesktopTopNav() {
         }}
         onMouseOver={e => e.currentTarget.style.background = 'var(--base-2)'}
         onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+        onClick={() => showNotification()}
         >
           <Bell size={20} strokeWidth={1.5} />
         </button>
@@ -190,7 +195,8 @@ export default function DesktopTopNav() {
           width: 34, height: 34, borderRadius: '50%', marginLeft: 8,
           background: 'linear-gradient(135deg, #00e676, #00bcd4)', border: 'none', cursor: 'pointer',
           color: '#000', fontWeight: 700
-        }}>
+        }}
+        onClick={() => showNotification()}>
           A
         </button>
       </div>
