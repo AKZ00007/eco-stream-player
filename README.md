@@ -2,7 +2,7 @@
 
 Eco-Stream is a mobile-first, highly interactive, premium video streaming platform tailored specifically for climate and biodiversity content. It emphasizes smooth gesture controls, seamless page-to-page video transitions, dynamic recommendation engines, and high-performance React UI components capable of rendering at ~60fps on mobile browsers.
 
-## 🚀 Setup Instructions
+##  Setup Instructions
 
 This project is built as a monorepo containing a React frontend (Vite) and an Node.js/Express backend. 
 
@@ -47,7 +47,7 @@ Alternatively, you can run them in separate terminals:
 
 ---
 
-## 🧠 Core Feature Logic & Implementation details
+##  Core Feature Logic & Implementation details
 
 For visitor understanding, here is how the core algorithms and mechanisms function under the hood:
 
