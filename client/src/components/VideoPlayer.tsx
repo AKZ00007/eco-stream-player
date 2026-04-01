@@ -319,49 +319,69 @@ export default function VideoPlayer() {
 
   const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    const container = playerContainerRef.current;
+    const vid = videoRef.current;
 
-    // iOS Safari: use webkitEnterFullscreen on the video element directly
-    const vid = videoRef.current as any;
-    if (vid?.webkitEnterFullscreen) {
-      try {
-        vid.webkitEnterFullscreen();
-        setIsFullscreen(true);
-      } catch (err) {}
-      return;
-    }
+    const isCurrentlyFullscreen = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement
+    );
 
-    // Standard Fullscreen API (Android/Chrome/Desktop)
-    if (!playerContainerRef.current) return;
-    if (!(document.fullscreenElement || (document as any).webkitFullscreenElement)) {
+    if (!isCurrentlyFullscreen) {
+      // ── ENTER fullscreen ──
       try {
-        if (playerContainerRef.current.requestFullscreen) {
-          await playerContainerRef.current.requestFullscreen();
-        } else if ((playerContainerRef.current as any).webkitRequestFullscreen) {
-          (playerContainerRef.current as any).webkitRequestFullscreen();
+        // Prefer container fullscreen (works on Android Chrome + Desktop)
+        if (container?.requestFullscreen) {
+          await container.requestFullscreen({ navigationUI: 'hide' });
+        } else if ((container as any)?.webkitRequestFullscreen) {
+          (container as any).webkitRequestFullscreen();
+        } else if ((vid as any)?.webkitEnterFullscreen) {
+          // Last resort: iOS Safari only supports fullscreen on <video> element
+          (vid as any).webkitEnterFullscreen();
+          setIsFullscreen(true);
+          return;
         }
-        setIsFullscreen(true);
-        if (screen.orientation && (screen.orientation as any).lock) {
-          try { await (screen.orientation as any).lock('landscape'); } catch (err) {}
+
+        // Once fullscreen is active, lock orientation to landscape
+        // Must be called AFTER fullscreen is confirmed active
+        try {
+          const orientation = screen.orientation as any;
+          if (orientation?.lock) {
+            await orientation.lock('landscape');
+          }
+        } catch (_) {
+          // orientation.lock() rejects if auto-rotate is off — that's fine,
+          // user still gets fullscreen just without forced rotation
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn('[Eco-Stream] Fullscreen enter failed:', err);
+      }
     } else {
+      // ── EXIT fullscreen ──
       try {
         if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if ((document as any).webkitExitFullscreen) {
           (document as any).webkitExitFullscreen();
         }
-        setIsFullscreen(false);
-        if (screen.orientation && (screen.orientation as any).unlock) {
-          try { (screen.orientation as any).unlock(); } catch (err) {}
-        }
-      } catch (err) {}
+      } catch (err) {
+        console.warn('[Eco-Stream] Fullscreen exit failed:', err);
+      }
     }
   };
 
+  // Track fullscreen state changes + unlock orientation on exit
   useEffect(() => {
     const onFullscreenChange = () => {
-      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+      const isFsNow = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(isFsNow);
+
+      // When exiting fullscreen, unlock the orientation so phone goes back to normal
+      if (!isFsNow) {
+        try {
+          (screen.orientation as any)?.unlock();
+        } catch (_) {}
+      }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
