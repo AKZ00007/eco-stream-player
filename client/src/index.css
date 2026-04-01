@@ -97,6 +97,19 @@ html, body {
   overflow: hidden;
 }
 
+/* ── Fake Fullscreen (Android orientation hack) ── */
+.fake-fullscreen-active {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 9999 !important;
+  background: #000 !important;
+  touch-action: none;
+}
+body.fake-fullscreen-body > *:not(#root) {
+  visibility: hidden;
+}
+
 /* ── DESKTOP ── */
 @media (min-width: 768px) {
   body { background: #030803; }

@@ -43,6 +43,7 @@ export default function VideoPlayer() {
   
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFakeFullscreen, setIsFakeFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -317,79 +318,121 @@ export default function VideoPlayer() {
     if (!isPlaying) showControls();
   };
 
+  // ── FAKE FULLSCREEN LOGIC (INDUSTRY STANDARD ANDROID HACK) ──
+  const enterFakeFullscreen = useCallback(() => {
+    const container = playerContainerRef.current;
+    if (!container) return;
+
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const screenH = Math.max(vh, vw); // tall dimension
+    const screenW = Math.min(vh, vw); // narrow dimension
+
+    container.classList.add('fake-fullscreen-active');
+    document.body.classList.add('fake-fullscreen-body');
+
+    // Rotate 90deg and swap dimensions
+    container.style.transform = `rotate(90deg)`;
+    container.style.transformOrigin = 'top left';
+    container.style.width = `${screenH}px`;
+    container.style.height = `${screenW}px`;
+    container.style.left = `${screenW}px`; // offset back onto screen
+
+    document.body.style.overflow = 'hidden';
+    setIsFakeFullscreen(true);
+    setIsFullscreen(true);
+
+    // Also attempt native fullscreen + lock to hide browser chrome if possible
+    try {
+      if (container.requestFullscreen) {
+        container.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+          (screen.orientation as any)?.lock?.('landscape').catch(() => {});
+        }).catch(() => {});
+      } else if ((container as any).webkitRequestFullscreen) {
+        (container as any).webkitRequestFullscreen();
+      }
+    } catch (_) {}
+  }, []);
+
+  const exitFakeFullscreen = useCallback(() => {
+    const container = playerContainerRef.current;
+    if (container) {
+      container.classList.remove('fake-fullscreen-active');
+      document.body.classList.remove('fake-fullscreen-body');
+      
+      container.style.transform = '';
+      container.style.transformOrigin = '';
+      container.style.width = '100%';
+      container.style.height = isFull ? 'auto' : '100%';
+      container.style.left = '';
+    }
+    document.body.style.overflow = '';
+    
+    setIsFakeFullscreen(false);
+    
+    // Clear native fullscreen if it happened to work
+    try {
+      if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+      (screen.orientation as any)?.unlock?.();
+    } catch (_) {}
+
+    setIsFullscreen(false);
+  }, [isFull]);
+
   const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const container = playerContainerRef.current;
     const vid = videoRef.current;
-
-    const isCurrentlyFullscreen = !!(
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement
-    );
-
-    if (!isCurrentlyFullscreen) {
-      // ── ENTER fullscreen ──
+    
+    // Quick iOS check first (iOS requires <video> element native fullscreen)
+    if ((vid as any)?.webkitEnterFullscreen) {
       try {
-        // Prefer container fullscreen (works on Android Chrome + Desktop)
-        if (container?.requestFullscreen) {
-          await container.requestFullscreen({ navigationUI: 'hide' });
-        } else if ((container as any)?.webkitRequestFullscreen) {
-          (container as any).webkitRequestFullscreen();
-        } else if ((vid as any)?.webkitEnterFullscreen) {
-          // Last resort: iOS Safari only supports fullscreen on <video> element
-          (vid as any).webkitEnterFullscreen();
-          setIsFullscreen(true);
-          return;
-        }
+        (vid as any).webkitEnterFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {}
+      return;
+    }
 
-        // Once fullscreen is active, lock orientation to landscape
-        // Must be called AFTER fullscreen is confirmed active
-        try {
-          const orientation = screen.orientation as any;
-          if (orientation?.lock) {
-            await orientation.lock('landscape');
-          }
-        } catch (_) {
-          // orientation.lock() rejects if auto-rotate is off — that's fine,
-          // user still gets fullscreen just without forced rotation
-        }
-      } catch (err) {
-        console.warn('[Eco-Stream] Fullscreen enter failed:', err);
-      }
+    // Android/Desktop route
+    if (isFakeFullscreen) {
+      exitFakeFullscreen();
     } else {
-      // ── EXIT fullscreen ──
-      try {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        } else if ((document as any).webkitExitFullscreen) {
-          (document as any).webkitExitFullscreen();
-        }
-      } catch (err) {
-        console.warn('[Eco-Stream] Fullscreen exit failed:', err);
-      }
+      enterFakeFullscreen();
     }
   };
 
-  // Track fullscreen state changes + unlock orientation on exit
+  // ── FULLSCREEN EVENT LISTENERS ──
   useEffect(() => {
-    const onFullscreenChange = () => {
-      const isFsNow = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
-      setIsFullscreen(isFsNow);
+    const handleKeyOrBack = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFakeFullscreen) exitFakeFullscreen();
+    };
 
-      // When exiting fullscreen, unlock the orientation so phone goes back to normal
-      if (!isFsNow) {
-        try {
-          (screen.orientation as any)?.unlock();
-        } catch (_) {}
+    const handlePopState = () => {
+      if (isFakeFullscreen) {
+        exitFakeFullscreen();
+        // Prevent navigating backwards
+        window.history.pushState(null, '', window.location.href);
       }
     };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+    if (isFakeFullscreen) {
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+    }
+
+    document.addEventListener('keydown', handleKeyOrBack);
     return () => {
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+      document.removeEventListener('keydown', handleKeyOrBack);
+      window.removeEventListener('popstate', handlePopState);
     };
-  }, []);
+  }, [isFakeFullscreen, exitFakeFullscreen]);
+
+  // If player state changes to NOT full, cleanup fake fullscreen
+  useEffect(() => {
+    if (!isFull && isFakeFullscreen) {
+      exitFakeFullscreen();
+    }
+  }, [isFull, isFakeFullscreen, exitFakeFullscreen]);
 
 
   // Save progress whenever the player is minimized or closed
