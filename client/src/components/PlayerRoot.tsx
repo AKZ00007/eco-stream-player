@@ -7,15 +7,15 @@ export default function PlayerRoot() {
   const state = usePlayerStore((s) => s.state);
   const prevStateRef = useRef(state);
 
-  // Hook 1: Push dummy state to window.history when player opens
+  // Hook 1: Push dummy state to window.history when player opens FULL
   useEffect(() => {
-    if (prevStateRef.current === 'CLOSED' && state !== 'CLOSED') {
-      // Player opened! Push a dummy layer to the browser history
-      window.history.pushState({ playerOpen: true }, '');
-    } else if (prevStateRef.current !== 'CLOSED' && state === 'CLOSED') {
-      // Player was manually closed (e.g. by dragging or clicking X).
-      // We must consume the dummy state if it's still there to avoid trapping the user.
-      if (window.history.state?.playerOpen) {
+    if (prevStateRef.current !== 'FULL' && state === 'FULL') {
+      // Player maximized! Push a dummy layer to the browser history
+      window.history.pushState({ playerFull: true }, '');
+    } else if (prevStateRef.current === 'FULL' && state !== 'FULL') {
+      // Player was manually minimized or closed.
+      // Consume the dummy state if it's still there.
+      if (window.history.state?.playerFull) {
         window.history.back();
       }
     }
@@ -25,11 +25,11 @@ export default function PlayerRoot() {
   // Hook 2: Intercept the Android/Phone back button via popstate
   useEffect(() => {
     const handlePopState = () => {
-      // The browser actually already popped the state off the stack.
-      // If the player is currently open, this pop should CLOSE the player.
       const currentStoreState = usePlayerStore.getState().state;
-      if (currentStoreState !== 'CLOSED') {
-        usePlayerStore.getState().closePlayer();
+      // If the hardware back button is pressed while FULL, minimize the player instead of closing.
+      // If it's MINI, let the normal browser back navigation happen without closing the player.
+      if (currentStoreState === 'FULL') {
+        usePlayerStore.getState().minimizePlayer();
       }
     };
     

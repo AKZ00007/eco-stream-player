@@ -319,39 +319,74 @@ export default function VideoPlayer() {
 
   const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!playerContainerRef.current) return;
 
-    if (!document.fullscreenElement) {
+    // iOS Safari: use webkitEnterFullscreen on the video element directly
+    const vid = videoRef.current as any;
+    if (vid?.webkitEnterFullscreen) {
       try {
-        await playerContainerRef.current.requestFullscreen();
+        vid.webkitEnterFullscreen();
+        setIsFullscreen(true);
+      } catch (err) {}
+      return;
+    }
+
+    // Standard Fullscreen API (Android/Chrome/Desktop)
+    if (!playerContainerRef.current) return;
+    if (!(document.fullscreenElement || (document as any).webkitFullscreenElement)) {
+      try {
+        if (playerContainerRef.current.requestFullscreen) {
+          await playerContainerRef.current.requestFullscreen();
+        } else if ((playerContainerRef.current as any).webkitRequestFullscreen) {
+          (playerContainerRef.current as any).webkitRequestFullscreen();
+        }
         setIsFullscreen(true);
         if (screen.orientation && (screen.orientation as any).lock) {
           try { await (screen.orientation as any).lock('landscape'); } catch (err) {}
         }
       } catch (err) {}
     } else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
         setIsFullscreen(false);
         if (screen.orientation && (screen.orientation as any).unlock) {
           try { (screen.orientation as any).unlock(); } catch (err) {}
         }
-      }
+      } catch (err) {}
     }
   };
 
   useEffect(() => {
     const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    };
   }, []);
 
+
+  // Save progress whenever the player is minimized or closed
+  const saveProgressBeforeLeave = useCallback(() => {
+    if (currentVideo && videoRef.current) {
+      const dur = videoRef.current.duration || 0;
+      if (dur > 0) {
+        const currProgress = videoRef.current.currentTime / dur;
+        updateWatchProgress(currentVideo.id, currProgress).catch(() => {});
+      }
+    }
+  }, [currentVideo]);
 
   const handleDragEnd = (_: any, info: any) => {
     if (isFull) {
       if (info.offset.y > 80 && info.velocity.y > 0) {
+        saveProgressBeforeLeave();
         minimizePlayer();
       } else {
         dragY.set(0);
@@ -359,6 +394,7 @@ export default function VideoPlayer() {
     } else {
       // ONLY close if flicked rapidly horizontally. Don't close on normal slow dragging.
       if (Math.abs(info.velocity.x) > 500) {
+        saveProgressBeforeLeave();
         closePlayer();
       }
     }
@@ -501,7 +537,7 @@ export default function VideoPlayer() {
             >
               {/* Top Bar */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', pointerEvents: 'all' }}>
-                <button onClick={(e) => { e.stopPropagation(); minimizePlayer(); }} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
+                <button onClick={(e) => { e.stopPropagation(); saveProgressBeforeLeave(); minimizePlayer(); }} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
                   <ChevronDown size={28} />
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20, color: '#fff' }}>
@@ -587,7 +623,7 @@ export default function VideoPlayer() {
               {isPlaying ? <Pause size={18} fill="#fff" /> : <Play size={18} fill="#fff" style={{ marginLeft: 2 }} />}
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); closePlayer(); }}
+              onClick={(e) => { e.stopPropagation(); saveProgressBeforeLeave(); closePlayer(); }}
               style={{ position: 'absolute', top: 6, right: 6, color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', padding: 0 }}
             >
               <X size={14} />
