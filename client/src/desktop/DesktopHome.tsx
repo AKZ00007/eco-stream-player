@@ -170,13 +170,22 @@ function DesktopContinueWatchingShelf() {
   const displayVideos = useMemo(() => {
     if (!videos) return null;
     let list = [...videos];
+    
+    if (list.length === 0 && allVideos && allVideos.length > 0) {
+      // Pick 6 random fallback videos
+      list = [...allVideos]
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 6)
+        .map(v => ({ ...v, lastWatchedAt: 0 }));
+    }
+
     if (allVideos) {
       const trendingVideo = allVideos.find(v => v.isTrending);
       if (trendingVideo) {
         // Remove it if it's already in the list
         list = list.filter(v => v.id !== trendingVideo.id);
         // Prepend to the front
-        list.unshift(trendingVideo);
+        list.unshift({ ...trendingVideo, lastWatchedAt: Date.now() });
       }
     }
     return list;

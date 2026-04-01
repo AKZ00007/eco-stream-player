@@ -23,13 +23,22 @@ app.use('/history', historyRouter);
 // Trending TICK endpoint (Internal polling for UI refresh)
 app.get('/trending-tick', (req, res) => {
   // Returns current mutated video list reflecting trending edits
-  res.json(videos);
+  // In serverless, we just return the static list
+  res.json(videos.filter(v => v.isTrending));
 });
 
-// Start the ticker Simulation
-startTrendingTicker(30000); // Ev. 30 seconds
+// For Vercel Serverless environment, we export the app
+// For local development, we listen to a port
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`[Eco-Stream Backend] Server running at http://localhost:${PORT}`);
+    console.log(`[Eco-Stream Backend] Started mock data engine with ${videos.length} videos.`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`[Eco-Stream Backend] Server running at http://localhost:${PORT}`);
-  console.log(`[Eco-Stream Backend] Started mock data engine with ${videos.length} videos.`);
-});
+// Ensure the trending ticker is not started automatically in production
+if (process.env.NODE_ENV !== 'production') {
+  startTrendingTicker(30000); // 30 seconds
+}
+
+export default app;

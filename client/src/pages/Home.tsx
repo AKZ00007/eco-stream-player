@@ -228,6 +228,29 @@ export default function Home() {
   const { data: allVideos, isError: isAllVideosError } = useVideos('');
   const { data: continueWatching } = useContinueWatching();
   const queryClient = useQueryClient();
+
+  const mobileDisplayVideos = useMemo(() => {
+    if (!continueWatching || !allVideos) return null;
+    let list = [...continueWatching];
+
+    // If no continue watching history, pad with random fallback
+    if (list.length === 0 && allVideos && allVideos.length > 0) {
+      list = [...allVideos]
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 6)
+        .map(v => ({ ...v, lastWatchedAt: 0 }));
+    }
+
+    if (allVideos) {
+      const trendingVideo = allVideos.find(v => v.isTrending);
+      if (trendingVideo) {
+        // Replace or add trending to the very front
+        list = list.filter(v => v.id !== trendingVideo.id);
+        list.unshift({ ...trendingVideo, lastWatchedAt: Date.now() });
+      }
+    }
+    return list;
+  }, [continueWatching, allVideos]);
   const openPlayer = usePlayerStore((s) => s.openPlayer);
   const navigate = useNavigate();
 
@@ -452,10 +475,10 @@ export default function Home() {
         )}
 
         {/* Recommended for You Section (No Header) */}
-        {!query && continueWatching && continueWatching.length > 0 && activeFilterSlug === 'all' && (
+        {!query && mobileDisplayVideos && mobileDisplayVideos.length > 0 && activeFilterSlug === 'all' && (
           <div className="section" style={{ paddingTop: 8 }}>
             <div className="card-row">
-              {continueWatching.map((v) => <HomeVideoCard key={v.id} video={v} />)}
+              {mobileDisplayVideos.map((v) => <HomeVideoCard key={v.id} video={v} />)}
             </div>
           </div>
         )}

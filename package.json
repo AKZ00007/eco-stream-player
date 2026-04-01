@@ -1,0 +1,21 @@
+{
+  "name": "eco-stream-player-root",
+  "private": true,
+  "scripts": {
+    "build": "npm run build --prefix client",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev": "npm run dev:server & npm run dev:client"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  }
+}
