@@ -102,10 +102,12 @@ html, body {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
-  z-index: 9999 !important;
+  z-index: 99999 !important;
   background: #000 !important;
   aspect-ratio: auto !important;
   touch-action: none;
+  will-change: transform;
+  overflow: hidden !important;
 }
 body.fake-fullscreen-body > *:not(#root) {
   visibility: hidden;

@@ -53,8 +53,14 @@ export default function VideoPlayer() {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
   const [networkError, setNetworkError] = useState(false);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
   const hasAutoResumed = useRef<string | null>(null);
+  const originalParentRef = useRef<HTMLElement | null>(null);
+
+  const log = useCallback((msg: string) => {
+    setDebugLogs(prev => [...prev.slice(-8), `${new Date().toLocaleTimeString()}: ${msg}`]);
+  }, []);
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncRef = useRef<number>(0);
@@ -319,14 +325,28 @@ export default function VideoPlayer() {
   };
 
   // ── FAKE FULLSCREEN LOGIC (INDUSTRY STANDARD ANDROID HACK) ──
+  // The motion.div parent has style={{ y: dragY }} which applies a CSS transform.
+  // Any CSS transform on a parent BREAKS position:fixed for children.
+  // Fix: physically move the container to document.body to escape the transform trap.
   const enterFakeFullscreen = useCallback(() => {
     const container = playerContainerRef.current;
-    if (!container) return;
+    if (!container) { log('❌ no container ref'); return; }
 
     const vh = window.innerHeight;
     const vw = window.innerWidth;
-    const screenH = Math.max(vh, vw); // tall dimension
-    const screenW = Math.min(vh, vw); // narrow dimension
+    log(`📐 vh=${vh} vw=${vw}`);
+
+    const screenH = Math.max(vh, vw);
+    const screenW = Math.min(vh, vw);
+
+    // Save the original parent so we can restore later
+    originalParentRef.current = container.parentElement;
+    log(`📦 parent=${container.parentElement?.className || 'unknown'}`);
+
+    // CRITICAL: Move container OUT of the motion.div into document.body
+    // This escapes the CSS transform trap that breaks position:fixed
+    document.body.appendChild(container);
+    log('📤 container moved to body');
 
     container.classList.add('fake-fullscreen-active');
     document.body.classList.add('fake-fullscreen-body');
@@ -336,59 +356,66 @@ export default function VideoPlayer() {
     container.style.transformOrigin = 'top left';
     container.style.width = `${screenH}px`;
     container.style.height = `${screenW}px`;
-    container.style.left = `${screenW}px`; // offset back onto screen
+    container.style.top = '0';
+    container.style.left = `${screenW}px`;
+    log(`📏 w=${screenH} h=${screenW} left=${screenW}`);
 
     document.body.style.overflow = 'hidden';
     setIsFakeFullscreen(true);
     setIsFullscreen(true);
+    log('✅ fake fullscreen applied');
 
     // Also attempt native fullscreen + lock to hide browser chrome if possible
     try {
       if (container.requestFullscreen) {
         container.requestFullscreen({ navigationUI: 'hide' }).then(() => {
-          (screen.orientation as any)?.lock?.('landscape').catch(() => {});
-        }).catch(() => {});
-      } else if ((container as any).webkitRequestFullscreen) {
-        (container as any).webkitRequestFullscreen();
+          log('🖥 native fullscreen granted');
+          (screen.orientation as any)?.lock?.('landscape').then(() => {
+            log('🔄 orientation locked landscape');
+          }).catch((e: any) => { log(`⚠️ orient lock fail: ${e.message}`); });
+        }).catch((e: any) => { log(`⚠️ native fs fail: ${e.message}`); });
       }
     } catch (_) {}
-  }, []);
+  }, [log]);
 
   const exitFakeFullscreen = useCallback(() => {
     const container = playerContainerRef.current;
-    if (container) {
-      container.classList.remove('fake-fullscreen-active');
-      document.body.classList.remove('fake-fullscreen-body');
-      
-      container.style.transform = '';
-      container.style.transformOrigin = '';
-      container.style.width = '100%';
-      container.style.height = isFull ? 'auto' : '100%';
-      container.style.left = '';
+    if (!container) return;
+    log('↩️ exiting fake fullscreen');
+
+    // Restore container back to its original parent
+    if (originalParentRef.current && !originalParentRef.current.contains(container)) {
+      originalParentRef.current.prepend(container);
+      log('↩️ container restored to original parent');
     }
+
+    container.classList.remove('fake-fullscreen-active');
+    document.body.classList.remove('fake-fullscreen-body');
+    container.style.cssText = '';
     document.body.style.overflow = '';
     
     setIsFakeFullscreen(false);
+    setIsFullscreen(false);
     
     // Clear native fullscreen if it happened to work
     try {
-      if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-      else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       (screen.orientation as any)?.unlock?.();
     } catch (_) {}
-
-    setIsFullscreen(false);
-  }, [isFull]);
+    log('✅ fake fullscreen exited');
+  }, [isFull, log]);
 
   const toggleFullscreen = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const vid = videoRef.current;
+    log(`🔘 toggleFullscreen called, isFake=${isFakeFullscreen}`);
     
     // Quick iOS check first (iOS requires <video> element native fullscreen)
     if ((vid as any)?.webkitEnterFullscreen) {
       try {
         (vid as any).webkitEnterFullscreen();
         setIsFullscreen(true);
+        log('🍏 iOS webkitEnterFullscreen used');
       } catch (err) {}
       return;
     }
@@ -466,6 +493,20 @@ export default function VideoPlayer() {
   if (!currentVideo || state === 'CLOSED') return null;
 
   const progressPct = `${(progress * 100).toFixed(2)}%`;
+
+  // ── Debug overlay (visible on mobile to diagnose fullscreen) ──
+  const debugOverlay = debugLogs.length > 0 ? (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0,
+      background: 'rgba(0,0,0,0.9)', color: '#0f0',
+      fontSize: '10px', padding: '6px 8px', zIndex: 999999,
+      fontFamily: 'monospace', whiteSpace: 'pre-wrap',
+      maxHeight: '30vh', overflow: 'auto',
+      pointerEvents: 'none'
+    }}>
+      {debugLogs.join('\n')}
+    </div>
+  ) : null;
 
   // ── Shared inner content for both full and mini states ──
   const playerInner = (
@@ -753,31 +794,34 @@ export default function VideoPlayer() {
   // ── Render the correct wrapper ──
   if (isFull) {
     return (
-      <motion.div
-        drag={!isFullscreen ? "y" : false}
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.2}
-        style={{ 
-          y: dragY, 
-          opacity: playerOpacity, 
-          display: 'flex', flexDirection: 'column', 
-          backgroundColor: tintedBg,
-          transition: 'background-color 0.6s ease',
-          position: 'fixed' as any,
-          zIndex: isFullscreen ? 9999 : 200,
-          height: '100dvh'
-        }}
-        className={`player-fullscreen ${isFullscreen ? 'z-[9999]' : ''}`}
-        onDragEnd={handleDragEnd}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-      >
-        {playerInner}
-      </motion.div>
+      <>
+        {debugOverlay}
+        <motion.div
+          drag={!isFullscreen ? "y" : false}
+          dragControls={dragControls}
+          dragListener={false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={0.2}
+          style={{ 
+            y: dragY, 
+            opacity: playerOpacity, 
+            display: 'flex', flexDirection: 'column', 
+            backgroundColor: tintedBg,
+            transition: 'background-color 0.6s ease',
+            position: 'fixed' as any,
+            zIndex: isFullscreen ? 9999 : 200,
+            height: '100dvh'
+          }}
+          className={`player-fullscreen ${isFullscreen ? 'z-[9999]' : ''}`}
+          onDragEnd={handleDragEnd}
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 35 }}
+        >
+          {playerInner}
+        </motion.div>
+      </>
     );
   }
 
